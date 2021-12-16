@@ -70,7 +70,7 @@ import gymTouchTestEnv
 env = gym.make("TouchTestEgg-v0")
 ```
 
-By default these also print touch information to console.
+By default these show you the sensor points added to each geom during initialization and print touch information on render updates.
 
 
 ## Installation
