@@ -86,6 +86,6 @@ pip install -e .
 
 To install the sample environment first install gymTouch, then
 ```
-cd gym_touchhand
+cd gymTouchTestEnv
 pip install -e .
 ```
