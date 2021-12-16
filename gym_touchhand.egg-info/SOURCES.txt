@@ -1,6 +1,0 @@
-setup.py
-gym_touchhand.egg-info/PKG-INFO
-gym_touchhand.egg-info/SOURCES.txt
-gym_touchhand.egg-info/dependency_links.txt
-gym_touchhand.egg-info/requires.txt
-gym_touchhand.egg-info/top_level.txt
