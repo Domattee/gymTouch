@@ -2,10 +2,10 @@ import os
 import numpy as np
 
 from gym import utils, spaces
-from gym.envs.robotics.hand import manipulate_touch_sensors
+from gym.envs.robotics.hand import manipulate
 
 from gymTouch.touch import DiscreteTouch
-from gymTouch.sensorpoints import plot_points
+from gymTouch.utils import plot_points
 
 # Ensure we get the path separator correct on windows
 MANIPULATE_BLOCK_XML = os.path.join("hand", "manipulate_block_touch_sensors.xml")
@@ -13,7 +13,7 @@ MANIPULATE_EGG_XML = os.path.join("hand", "manipulate_egg_touch_sensors.xml")
 MANIPULATE_PEN_XML = os.path.join("hand", "manipulate_pen_touch_sensors.xml")
 
 
-class ManipulateTouchSensorsTestEnv(manipulate_touch_sensors.ManipulateTouchSensorsEnv):
+class ManipulateTouchSensorsTestEnv(manipulate.ManipulateEnv):
     def __init__(
         self,
         model_path,
@@ -29,24 +29,9 @@ class ManipulateTouchSensorsTestEnv(manipulate_touch_sensors.ManipulateTouchSens
         n_substeps=20,
         relative_control=False,
         ignore_z_target_rotation=False,
-        touch_visualisation="on_touch",
-        touch_get_obs="sensordata",
     ):
-        """Initializes a new Hand manipulation environment with touch sensors.
-
-        Args:
-            touch_visualisation (string): how touch sensor sites are visualised
-                - "on_touch": shows touch sensor sites only when touch values > 0
-                - "always": always shows touch sensor sites
-                - "off" or else: does not show touch sensor sites
-            touch_get_obs (string): touch sensor readings
-                - "boolean": returns 1 if touch sensor reading != 0.0 else 0
-                - "sensordata": returns original touch sensor readings from self.sim.data.sensordata[id]
-                - "log": returns log(x+1) touch sensor readings from self.sim.data.sensordata[id]
-                - "off" or else: does not add touch sensor readings to the observation
-
-        """
-        manipulate_touch_sensors.ManipulateTouchSensorsEnv.__init__(
+        # Pass through all the original env setup
+        manipulate.ManipulateEnv.__init__(
             self,
             model_path,
             target_position,
@@ -61,8 +46,6 @@ class ManipulateTouchSensorsTestEnv(manipulate_touch_sensors.ManipulateTouchSens
             n_substeps=n_substeps,
             relative_control=relative_control,
             ignore_z_target_rotation=ignore_z_target_rotation,
-            touch_visualisation=touch_visualisation,
-            touch_get_obs=touch_get_obs
         )
 
         # Attach touch
@@ -164,16 +147,14 @@ class HandBlockTouchSensorsTestEnv(ManipulateTouchSensorsTestEnv, utils.EzPickle
         self,
         target_position="random",
         target_rotation="xyz",
-        touch_get_obs="sensordata",
         reward_type="sparse",
     ):
         utils.EzPickle.__init__(
-            self, target_position, target_rotation, touch_get_obs, reward_type
+            self, target_position, target_rotation, reward_type
         )
         ManipulateTouchSensorsTestEnv.__init__(
             self,
             model_path=MANIPULATE_BLOCK_XML,
-            touch_get_obs=touch_get_obs,
             target_rotation=target_rotation,
             target_position=target_position,
             target_position_range=np.array([(-0.04, 0.04), (-0.06, 0.02), (0.0, 0.06)]),
@@ -186,21 +167,18 @@ class HandEggTouchSensorsTestEnv(ManipulateTouchSensorsTestEnv, utils.EzPickle):
         self,
         target_position="random",
         target_rotation="xyz",
-        touch_get_obs="sensordata",
         reward_type="sparse",
     ):
         utils.EzPickle.__init__(
-            self, target_position, target_rotation, touch_get_obs, reward_type
+            self, target_position, target_rotation, reward_type
         )
         ManipulateTouchSensorsTestEnv.__init__(
             self,
             model_path=MANIPULATE_EGG_XML,
-            touch_get_obs=touch_get_obs,
             target_rotation=target_rotation,
             target_position=target_position,
             target_position_range=np.array([(-0.04, 0.04), (-0.06, 0.02), (0.0, 0.06)]),
             reward_type=reward_type,
-            touch_visualisation="off",
         )
 
 
@@ -209,16 +187,14 @@ class HandPenTouchSensorsTestEnv(ManipulateTouchSensorsTestEnv, utils.EzPickle):
         self,
         target_position="random",
         target_rotation="xyz",
-        touch_get_obs="sensordata",
         reward_type="sparse",
     ):
         utils.EzPickle.__init__(
-            self, target_position, target_rotation, touch_get_obs, reward_type
+            self, target_position, target_rotation, reward_type
         )
         ManipulateTouchSensorsTestEnv.__init__(
             self,
             model_path=MANIPULATE_PEN_XML,
-            touch_get_obs=touch_get_obs,
             target_rotation=target_rotation,
             target_position=target_position,
             target_position_range=np.array([(-0.04, 0.04), (-0.06, 0.02), (0.0, 0.06)]),

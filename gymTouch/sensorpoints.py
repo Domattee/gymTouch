@@ -1,7 +1,6 @@
 import math
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from gymTouch.utils import EPS
 
@@ -173,20 +172,3 @@ def spread_points_capsule(resolution: float, length: float, radius: float):
                 sphere_points.append([x, y, -z])
 
     return np.concatenate([pipe_points, np.array(sphere_points)])
-
-
-def plot_points(points, limit, title=""):
-    xs = points[:, 0]
-    ys = points[:, 1]
-    zs = points[:, 2]
-    fig = plt.figure()
-
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(xs, ys, zs, color="k", s=20)
-    ax.set_title(title)
-    ax.set_xlim([-limit, limit])
-    ax.set_ylim([-limit, limit])
-    ax.set_zlim([-limit, limit])
-    ax.set_box_aspect((1, 1, 1))
-    plt.tight_layout()
-    plt.show()

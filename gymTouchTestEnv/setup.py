@@ -1,9 +1,8 @@
 from setuptools import setup
  
 setup(
-    name='gym_Touch',
+    name='gymTouchTestEnv',
     version='0.1',
-    packages=['gymTouch', 'gym_touchhand'],
     url='',
     license='',
     author='Dominik Mattern',

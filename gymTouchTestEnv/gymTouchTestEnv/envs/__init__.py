@@ -1,0 +1,3 @@
+from gymTouchTestEnv.envs.touchtest_env import HandBlockTouchSensorsTestEnv
+from gymTouchTestEnv.envs.touchtest_env import HandEggTouchSensorsTestEnv
+from gymTouchTestEnv.envs.touchtest_env import HandPenTouchSensorsTestEnv
