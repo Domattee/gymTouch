@@ -138,8 +138,10 @@ def spread_points_cylinder(resolution: float, length: float, radius: float):
                 y = cap_radius * math.sin(theta)
                 cap_points.append([x, y, -length / 2])
                 cap_points.append([x, y, length / 2])
-
-    return np.concatenate([pipe_points, np.array(cap_points)])
+    if len(cap_points) == 0:
+        return pipe_points
+    else:
+        return np.concatenate([pipe_points, np.array(cap_points)])
 
 
 def spread_points_capsule(resolution: float, length: float, radius: float):

@@ -4,7 +4,7 @@ import numpy as np
 from gym import utils, spaces
 from gym.envs.robotics.hand import manipulate
 
-from gymTouch.touch import DiscreteTouch
+from gymTouch.touch import DiscreteTouch, scale_linear
 from gymTouch.utils import plot_points
 
 # Ensure we get the path separator correct on windows
@@ -60,10 +60,10 @@ class ManipulateTouchSensorsTestEnv(manipulate.ManipulateEnv):
         for body_id in range(self.sim.model.nbody):
             body_name = self.sim.model.body_id2name(body_id)
             if any(f_string in body_name for f_string in TOUCH_BODY_FILTER):
-                n_sensors = self.touch.add_body(body_id=body_id, resolution=TOUCH_RESOLUTION)
+                n_sensors = self.touch.add_body(body_id=body_id, scale=TOUCH_RESOLUTION)
                 print("Added {} to {}".format(n_sensors, body_name))
             if any(f_string in body_name for f_string in FINE_TOUCH_FILTER):
-                n_sensors = self.touch.add_body(body_id=body_id, resolution=FINE_TOUCH_RESOLUTION)
+                n_sensors = self.touch.add_body(body_id=body_id, scale=FINE_TOUCH_RESOLUTION)
                 print("Added {} to {}".format(n_sensors, body_name))
 
         print("A total of {} sensors added to model".format(self.touch.get_total_sensor_count()))
@@ -99,7 +99,7 @@ class ManipulateTouchSensorsTestEnv(manipulate.ManipulateEnv):
         # Try-except is there to avoid errors during initialization since OpenAi robotics envs call _get_obs during
         # init, when self.touch is not yet set.
         try:
-            obs["observation_haptic"] = self.touch.get_force_vector_obs()
+            obs["observation_haptic"] = self.touch.get_touch_obs(DiscreteTouch.get_force_relative, 3, scale_linear)
         except AttributeError:
             pass
         return obs
@@ -122,24 +122,6 @@ class ManipulateTouchSensorsTestEnv(manipulate.ManipulateEnv):
                                                                                       other_geom_name,
                                                                                       rel_force,
                                                                                       rel_pos))
-
-#    def _get_normal_obs(self):
-#        """ Dummy function to show some of the touch interface"""
-#        contacts = self.touch.get_contacts()
-#        # Get normal force and vector for every contact
-#        forces = self.touch.get_empty_sensor_dict(1)
-#        vectors = self.touch.get_empty_sensor_dict(3)
-#        for contact_id, geom_id, nearest_sensor in contacts:
-#            normal_force = self.touch.get_normal_force(contact_id, geom_id)
-#            normal_vector = self.touch.get_normal_vector(contact_id, geom_id)
-#            # Sum up vectors and forces for every contact on this sensor point
-#            vectors[geom_id][nearest_sensor] = touch_utils.weighted_sum_vectors(normal_vector, normal_force,
-#                                                                                forces[geom_id][nearest_sensor],
-#                                                                                vectors[geom_id][nearest_sensor])
-#            forces[geom_id][nearest_sensor] += normal_force
-#        # Pack them into sensor array
-#        force_array = self.touch.flatten_sensor_dict(forces)
-#        vector_array = self.touch.flatten_sensor_dict(vectors)
 
 
 class HandBlockTouchSensorsTestEnv(ManipulateTouchSensorsTestEnv, utils.EzPickle):
