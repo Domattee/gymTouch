@@ -2,7 +2,8 @@ import math
 import numpy as np
 import mujoco_py
 
-from gymTouch.utils import mulRotT, mulRot
+from gymTouch.utils import mulRotT, mulRot, plot_forces, get_geoms_for_body, get_geom_rotation, get_body_rotation, \
+                           world_pos_to_geom, geom_pos_to_body
 from gymTouch.sensorpoints import spread_points_box, spread_points_sphere, spread_points_cylinder, spread_points_capsule
 
 # Class that handles all of this
@@ -19,7 +20,7 @@ from gymTouch.sensorpoints import spread_points_box, spread_points_sphere, sprea
 #   Find nearest sensors:
 #       TODO: Should consider surface of mesh, opposite side of thing object should not be considered
 #   Function to adjust force based on distance between contact and sensor point
-#   TODO: Rework (with trimesh?)
+#   TODO: Rework (with trimesh?). Sensor points should have well defined frames with normal vector
 #   TODO: Biologically accurate outputs/delays(?)
 
 
@@ -44,8 +45,11 @@ class DiscreteTouch:
         based on the distance between a contact and the sensor
         """
         self.env = env
+        self.m_data = env.sim.data
+        self.m_model = env.sim.model
         self.sensor_positions = {}
         self.sensor_params = {}
+        self.sensor_outputs = {}
         self.plotting_limits = {}
         self.verbose = verbose
         
@@ -56,12 +60,13 @@ class DiscreteTouch:
             raise RuntimeError("DiscreteTouch.add_body called without name or id")
             
         if body_id is None:
-            body_id = self.env.sim.model.body_name2id(body_name)
+            body_id = self.m_model.body_name2id(body_name)
 
         n_sensors = 0
-        for geom_id in range(self.env.sim.model.ngeom):
-            g_body_id = self.env.sim.model.geom_bodyid[geom_id]
-            contype = self.env.sim.model.geom_contype[geom_id]
+
+        for geom_id in get_geoms_for_body(self.m_model, body_id):
+            g_body_id = self.m_model.geom_bodyid[geom_id]
+            contype = self.m_model.geom_contype[geom_id]
             # Add a geom if it belongs to body and has collisions enabled (at least potentially)
             if g_body_id == body_id and contype > 0:
                 n_sensors += self.add_geom(geom_id=geom_id, scale=scale)
@@ -164,45 +169,73 @@ class DiscreteTouch:
         sorted_idxs = np.argpartition(distances, k)
         return sorted_idxs[:k], distances[sorted_idxs[:k]]
 
-# ======================== Positions and rotations ================================
-# =================================================================================
-
-    def get_geom_position(self, geom_id):
-        """ Returns world position of geom"""
-        return self.env.sim.data.geom_xpos[geom_id]
-
-    def get_geom_rotation(self, geom_id):
-        """ Returns rotation matrix of geom frame relative to world frame"""
-        return np.reshape(self.env.sim.data.geom_xmat[geom_id], (3, 3))
-
-    def world_pos_to_relative(self, position, geom_id):
-        """ Converts a (3,) numpy array containing xyz coordinates in world frame to geom frame"""
-        rel_pos = position - self.get_geom_position(geom_id)
-        rel_pos = mulRot(rel_pos, self.get_geom_rotation(geom_id))
-        return rel_pos
-
-    def relative_pos_to_world(self, position, geom_id):
-        """ Converts a (3,) numpy array containing xyz coordinates in geom frame to world frame"""
-        global_pos = mulRotT(position, self.get_geom_rotation(geom_id))
-        global_pos = global_pos + self.get_geom_position(geom_id)
-        return global_pos
+    # ======================== Positions and rotations ================================
+    # =================================================================================
 
     def get_contact_position_world(self, contact_id):
         """ Get the position of a contact in world frame """
-        return self.env.sim.data.contact[contact_id].pos
+        return self.m_data.contact[contact_id].pos
 
     def get_contact_position_relative(self, contact_id, geom_id: int):
         """ Get the position of a contact in the geom frame """
-        return self.world_pos_to_relative(self.get_contact_position_world(contact_id), geom_id)
+        return world_pos_to_geom(self.m_data, self.get_contact_position_world(contact_id), geom_id)
 
-# =============== Various types of forces in various frames =======================
-# =================================================================================
+    # =============== Visualizations ==================================================
+    # =================================================================================
+
+    # TODO: Plot forces for single geom
+    def plot_force_geom(self, geom_id: int = None, geom_name: str = None):
+        if geom_id is None and geom_name is None:
+            raise RuntimeError("DiscreteTouch.add_geom called without name or id")
+
+        if geom_id is None:
+            geom_id = self.env.sim.model.geom_name2id(geom_name)
+
+        sensor_points = self.sensor_positions[geom_id]
+        force_vectors = self.sensor_outputs[geom_id]
+        if force_vectors.shape[1] == 1:
+            # TODO: Need proper sensor normals, can't do this until trimesh rework
+            raise RuntimeWarning("Plotting of scalar forces not implemented!")
+        else:
+            plot_forces(sensor_points, force_vectors, limit=np.max(sensor_points))
+
+    # TODO: Plot forces for single body
+    def plot_force_body(self, body_id: int = None, body_name: str = None,):
+
+        if body_id is None and body_name is None:
+            raise RuntimeError("DiscreteTouch.add_body called without name or id")
+
+        if body_id is None:
+            body_id = self.m_model.body_name2id(body_name)
+
+        points = []
+        forces = []
+        # For every geom: Convert sensor points and forces to body frame ->
+        for geom_id in get_geoms_for_body(self.m_model, body_id):
+            points_in_body = geom_pos_to_body(self.m_data, self.sensor_positions[geom_id], geom_id, body_id)
+            points.append(points_in_body)
+            force_vectors = self.sensor_outputs[geom_id] / 10000
+            if force_vectors.shape[1] == 1:
+                # TODO: Need proper sensor normals, can't do this until trimesh rework
+                raise RuntimeWarning("Plotting of scalar forces not implemented!")
+            world_forces = mulRot(np.transpose(force_vectors), get_geom_rotation(self.m_data, geom_id))
+            body_forces = np.transpose(mulRotT(world_forces, get_body_rotation(self.m_data, body_id)))
+            forces.append(body_forces)
+
+        points_t = np.concatenate(points)
+        forces_t = np.concatenate(forces)
+        plot_forces(points_t, forces_t, limit=np.max(points_t) + 0.5)
+
+    # TODO: Plot forces for body subtree
+
+    # =============== Various types of forces in various frames =======================
+    # =================================================================================
 
     def get_force(self, contact_id, geom_id):
         """ Returns the full contact force in mujocos own contact frame. Output is a 3-d vector"""
         forces = np.zeros(6, dtype=np.float64)
-        mujoco_py.functions.mj_contactForce(self.env.sim.model, self.env.sim.data, contact_id, forces)
-        contact = self.env.sim.data.contact[contact_id]
+        mujoco_py.functions.mj_contactForce(self.m_model, self.m_data, contact_id, forces)
+        contact = self.m_data.contact[contact_id]
         if geom_id == contact.geom1:
             forces *= -1  # Convention is that normal points away from geom1
         elif geom_id == contact.geom2:
@@ -217,7 +250,7 @@ class DiscreteTouch:
 
     def get_contact_normal(self, contact_id, geom_id):
         """ Returns the normal vector (unit vector in direction of normal) in geom frame"""
-        contact = self.env.sim.data.contact[contact_id]
+        contact = self.m_data.contact[contact_id]
         normal_vector = contact.frame[:3]
         if geom_id == contact.geom1:  # Mujoco vectors point away from geom1 by convention
             normal_vector *= -1
@@ -226,7 +259,7 @@ class DiscreteTouch:
         else:
             RuntimeError("Mismatch between contact and geom")
         # contact frame is in global coordinate frame, rotate to geom frame
-        normal_vector = mulRot(normal_vector, self.get_geom_rotation(geom_id))
+        normal_vector = mulRot(normal_vector, get_geom_rotation(self.m_data, geom_id))
         return normal_vector
 
     def get_force_world(self, contact_id, geom_id):
@@ -240,7 +273,7 @@ class DiscreteTouch:
     def get_force_relative(self, contact_id, geom_id):
         """ Returns full contact force in geom frame. Output is a 3-d vector"""
         global_forces = self.get_force_world(contact_id, geom_id)
-        relative_forces = mulRot(global_forces, self.get_geom_rotation(geom_id))
+        relative_forces = mulRotT(global_forces, get_geom_rotation(self.m_data, geom_id))
         return relative_forces
 
     def _adjust_force_for_sensor(self, force, contact_id, geom_id, sensor_id, adjustment_function, adjustment_params):
@@ -338,6 +371,7 @@ class DiscreteTouch:
                 rescaled_sensor_adjusted_force = adjusted_forces[sensor_id] * factors
                 sensor_outputs[geom_id][sensor_id] += rescaled_sensor_adjusted_force
 
+        self.sensor_outputs = sensor_outputs
         sensor_obs = self.flatten_sensor_dict(sensor_outputs)
         return sensor_obs
 
