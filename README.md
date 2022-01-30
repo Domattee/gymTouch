@@ -4,7 +4,7 @@ Simple implementation for adding haptic sensors to openAI gym environments using
 
 ## Usage
 
-Adding touch sensors to an existing gym environment is very straightforward, an example can be seen the sample environment in ```gymTouchTestEnv```. Attach the touch library, add which bodies/geoms should have sensors and at what resolution and then decide how you want to handle the output.
+Adding touch sensors to an existing gym environment is very straightforward, an example can be seen in the sample environment in ```gymTouchTestEnv```. Attach the touch library, add which bodies/geoms should have sensors and at what resolution and then decide how you want to handle the output.
 
 ```
 from gymTouch.touch import DiscreteTouch
@@ -56,7 +56,7 @@ The only requirement is that the environment be a mujoco environment with an att
 
 In the example above we return touch information as a force vector. Look into ```get_force_vector_obs``` and the sample environment if you would like different types of touch information, such as the normal force only.
 
-You can also plot the points for a given geom using ``` plot_points from gymTouch.utils```.
+You can also plot the sensor points for a given geom using ```plot_points``` from ```gymTouch.utils```.
 
 #### Sample Environment
 There are three sample environments based on the openAI Manipulate gym environments. Sensors were added to the palm and all fingers with the finger tips using a higher resolution. The environments are ```TouchTestBlock-v0```, ```TouchTestEgg-v0``` and ```TouchTestPen-v0```
@@ -70,7 +70,7 @@ import gymTouchTestEnv
 env = gym.make("TouchTestEgg-v0")
 ```
 
-By default these also print touch information to console.
+By default these show you the sensor points added to each geom during initialization and print touch information to console on render steps.
 
 
 ## Installation
