@@ -6,6 +6,7 @@ setup(
     url='',
     license='',
     author='Dominik Mattern',
+    packages=['gymTouchTestEnv'],
     author_email='domattee@yahoo.de',
     description='Simple library for spreading touch sensors on openAI mujoco environments'
 )

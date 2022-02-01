@@ -188,45 +188,6 @@ class DiscreteTouch:
     # =============== Visualizations ==================================================
     # =================================================================================
 
-    def add_plot(self, body_id: int = None, body_name: str = None):
-        if body_id is None and body_name is None:
-            raise RuntimeError("DiscreteTouch.add_body called without name or id")
-
-        if body_id is None:
-            body_id = self.m_model.body_name2id(body_name)
-
-        body_name = self.m_model.body_id2name(body_id)
-
-        points, forces = self._get_plot_info_body(body_id)
-
-        fig = plt.figure()
-
-        ax = fig.add_subplot(111, projection='3d')
-        ax.set_title(body_name)
-        #ax.set_xlim([-limit, limit])
-        #ax.set_ylim([-limit, limit])
-        #ax.set_zlim([-limit, limit])
-        ax.set_box_aspect((1, 1, 1))
-        pts = ax.scatter(points[:, 0], points[:, 1], points[:, 2], color="k", s=20)
-        quiv = ax.quiver(points[:, 0], points[:, 1], points[:, 2], forces[:, 0], forces[:, 1], forces[:, 2])
-        self.plots[body_id] = (fig, ax, [pts, quiv])
-        plt.tight_layout()
-        plt.show(block=False)
-        plt.pause(1)
-
-    def update_plots(self):
-        for body_id in self.plots:
-            fig, ax, artists = self.plots[body_id]
-            pts, quiv = artists
-            points, forces = self._get_plot_info_body(body_id)
-            #pts.set_segments((points[:, 0], points[:, 1], points[:, 2]))
-            pts.remove()
-            quiv.remove()
-            pts = ax.scatter(points[:, 0], points[:, 1], points[:, 2], color="k", s=20)
-            quiv = ax.quiver(points[:, 0], points[:, 1], points[:, 2], forces[:, 0], forces[:, 1], forces[:, 2])
-            self.plots[body_id] = (fig, ax, [pts, quiv])
-        plt.draw()
-
     # Plot forces for single geom
     def plot_force_geom(self, geom_id: int = None, geom_name: str = None):
         if geom_id is None and geom_name is None:
