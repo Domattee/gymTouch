@@ -46,7 +46,7 @@ class envWithTouch(envWithoutTouch):
     obs = super()._get_obs()
     # Add touch sensor output to observations
     try:
-      obs["observation_haptic"] = self.touch.get_force_vector_obs()
+      obs["observation_haptic"] = self.touch.get_touch_obs(DiscreteTouch.get_force_relative, 3, scale_linear)
     except AttributeError:
       pass
     return obs
@@ -54,7 +54,7 @@ class envWithTouch(envWithoutTouch):
 
 The only requirement is that the environment be a mujoco environment with an attribute ```sim```, as that attribute is used to access the underlying mujoco simulation.
 
-In the example above we return touch information as a force vector. Look into ```get_force_vector_obs``` and the sample environment if you would like different types of touch information, such as the normal force only.
+In the example above we return touch information as a force vector. Look into ```get_touch_obs``` and the sample environment if you would like different types of touch information, such as the normal force only.
 
 You can also plot the sensor points for a given geom using ```plot_points``` from ```gymTouch.utils```.
 
