@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import mujoco_py
+from matplotlib import pyplot as plt
 
 from gymTouch.utils import mulRotT, mulRot, plot_forces, get_geoms_for_body, get_geom_rotation, get_body_rotation, \
                            world_pos_to_geom, geom_pos_to_body
@@ -22,6 +23,7 @@ from gymTouch.sensorpoints import spread_points_box, spread_points_sphere, sprea
 #   Function to adjust force based on distance between contact and sensor point
 #   TODO: Rework (with trimesh?). Sensor points should have well defined frames with normal vector
 #   TODO: Biologically accurate outputs/delays(?)
+#   TODO: Properly encapsulate the sensor plotting
 
 
 GEOM_TYPES = {"PLANE": 0, "HFIELD": 1, "SPHERE": 2, "CAPSULE": 3, "ELLIPSOID": 4, "CYLINDER": 5, "BOX": 6, "MESH": 7}
@@ -47,10 +49,13 @@ class DiscreteTouch:
         self.env = env
         self.m_data = env.sim.data
         self.m_model = env.sim.model
+
         self.sensor_positions = {}
         self.sensor_params = {}
         self.sensor_outputs = {}
+
         self.plotting_limits = {}
+        self.plots = {}
         self.verbose = verbose
         
     def add_body(self, body_id: int = None, body_name: str = None, scale: float = math.inf):
@@ -77,16 +82,16 @@ class DiscreteTouch:
             raise RuntimeError("DiscreteTouch.add_geom called without name or id")
             
         if geom_id is None:
-            geom_id = self.env.sim.model.geom_name2id(geom_name)
+            geom_id = self.m_model.geom_name2id(geom_name)
 
-        if self.env.sim.model.geom_contype[geom_id] == 0:
+        if self.m_model.geom_contype[geom_id] == 0:
             raise RuntimeWarning("Added sensors to geom with collisions disabled!")
 
         if self.verbose:
             print("Geom {} name {} type {} ".format(
                   geom_id,
-                  self.env.sim.model.geom_id2name(geom_id),
-                  self.env.sim.model.geom_type[geom_id]))
+                  self.m_model.geom_id2name(geom_id),
+                  self.m_model.geom_type[geom_id]))
 
         return self._add_sensorpoints(geom_id, scale)
 
@@ -114,8 +119,8 @@ class DiscreteTouch:
         # Add sensor points for the given geom using given resolution
         # Returns the number of sensor points added
         # Also set the maximum size of the geom, for plotting purposes
-        geom_type = self.env.sim.model.geom_type[geom_id]
-        size = self.env.sim.model.geom_size[geom_id]
+        geom_type = self.m_model.geom_type[geom_id]
+        size = self.m_model.geom_size[geom_id]
         limit = 1
         if geom_type == GEOM_TYPES["BOX"]:
             limit = np.max(size)
@@ -136,7 +141,7 @@ class DiscreteTouch:
         elif geom_type == GEOM_TYPES["ELLIPSOID"]:
             raise NotImplementedError("Ellipsoids currently not implemented")
         elif geom_type == GEOM_TYPES["MESH"]:
-            size = self.env.sim.model.geom_rbound[geom_id]
+            size = self.m_model.geom_rbound[geom_id]
             limit = size
             points = spread_points_sphere(scale, size)
         else:
@@ -183,13 +188,52 @@ class DiscreteTouch:
     # =============== Visualizations ==================================================
     # =================================================================================
 
-    # TODO: Plot forces for single geom
+    def add_plot(self, body_id: int = None, body_name: str = None):
+        if body_id is None and body_name is None:
+            raise RuntimeError("DiscreteTouch.add_body called without name or id")
+
+        if body_id is None:
+            body_id = self.m_model.body_name2id(body_name)
+
+        body_name = self.m_model.body_id2name(body_id)
+
+        points, forces = self._get_plot_info_body(body_id)
+
+        fig = plt.figure()
+
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_title(body_name)
+        #ax.set_xlim([-limit, limit])
+        #ax.set_ylim([-limit, limit])
+        #ax.set_zlim([-limit, limit])
+        ax.set_box_aspect((1, 1, 1))
+        pts = ax.scatter(points[:, 0], points[:, 1], points[:, 2], color="k", s=20)
+        quiv = ax.quiver(points[:, 0], points[:, 1], points[:, 2], forces[:, 0], forces[:, 1], forces[:, 2])
+        self.plots[body_id] = (fig, ax, [pts, quiv])
+        plt.tight_layout()
+        plt.show(block=False)
+        plt.pause(1)
+
+    def update_plots(self):
+        for body_id in self.plots:
+            fig, ax, artists = self.plots[body_id]
+            pts, quiv = artists
+            points, forces = self._get_plot_info_body(body_id)
+            #pts.set_segments((points[:, 0], points[:, 1], points[:, 2]))
+            pts.remove()
+            quiv.remove()
+            pts = ax.scatter(points[:, 0], points[:, 1], points[:, 2], color="k", s=20)
+            quiv = ax.quiver(points[:, 0], points[:, 1], points[:, 2], forces[:, 0], forces[:, 1], forces[:, 2])
+            self.plots[body_id] = (fig, ax, [pts, quiv])
+        plt.draw()
+
+    # Plot forces for single geom
     def plot_force_geom(self, geom_id: int = None, geom_name: str = None):
         if geom_id is None and geom_name is None:
             raise RuntimeError("DiscreteTouch.add_geom called without name or id")
 
         if geom_id is None:
-            geom_id = self.env.sim.model.geom_name2id(geom_name)
+            geom_id = self.m_model.geom_name2id(geom_name)
 
         sensor_points = self.sensor_positions[geom_id]
         force_vectors = self.sensor_outputs[geom_id]
@@ -197,20 +241,11 @@ class DiscreteTouch:
             # TODO: Need proper sensor normals, can't do this until trimesh rework
             raise RuntimeWarning("Plotting of scalar forces not implemented!")
         else:
-            plot_forces(sensor_points, force_vectors, limit=np.max(sensor_points))
+            plot_forces(sensor_points, force_vectors, limit=np.max(sensor_points) + 0.5)
 
-    # TODO: Plot forces for single body
-    def plot_force_body(self, body_id: int = None, body_name: str = None,):
-
-        if body_id is None and body_name is None:
-            raise RuntimeError("DiscreteTouch.add_body called without name or id")
-
-        if body_id is None:
-            body_id = self.m_model.body_name2id(body_name)
-
+    def _get_plot_info_body(self, body_id):
         points = []
         forces = []
-        # For every geom: Convert sensor points and forces to body frame ->
         for geom_id in get_geoms_for_body(self.m_model, body_id):
             points_in_body = geom_pos_to_body(self.m_data, self.sensor_positions[geom_id], geom_id, body_id)
             points.append(points_in_body)
@@ -221,10 +256,23 @@ class DiscreteTouch:
             world_forces = mulRot(np.transpose(force_vectors), get_geom_rotation(self.m_data, geom_id))
             body_forces = np.transpose(mulRotT(world_forces, get_body_rotation(self.m_data, body_id)))
             forces.append(body_forces)
-
         points_t = np.concatenate(points)
         forces_t = np.concatenate(forces)
-        plot_forces(points_t, forces_t, limit=np.max(points_t) + 0.5)
+        return points_t, forces_t
+
+    # TODO: Plot forces for single body
+    def plot_force_body(self, body_id: int = None, body_name: str = None):
+
+        if body_id is None and body_name is None:
+            raise RuntimeError("DiscreteTouch.add_body called without name or id")
+
+        if body_id is None:
+            body_id = self.m_model.body_name2id(body_name)
+
+        points, forces = self._get_plot_info_body(body_id)
+        # For every geom: Convert sensor points and forces to body frame ->
+
+        plot_forces(points, forces, limit=np.max(points) + 0.5)
 
     # TODO: Plot forces for body subtree
 
@@ -264,7 +312,7 @@ class DiscreteTouch:
 
     def get_force_world(self, contact_id, geom_id):
         """ Returns full contact force in world frame. Output is a 3-d vector"""
-        contact = self.env.sim.data.contact[contact_id]
+        contact = self.m_data.contact[contact_id]
         forces = self.get_force(contact_id, geom_id)
         force_rot = np.reshape(contact.frame, (3, 3))
         global_forces = mulRotT(forces, force_rot)
@@ -293,10 +341,9 @@ class DiscreteTouch:
         arrays and sensor_ids are the indices of the k sensors on the geom nearest to the contact"""
         if verbose is None:
             verbose = self.verbose
-        sim = self.env.sim
         contact_geom_tuples = []
-        for i in range(sim.data.ncon):
-            contact = sim.data.contact[i]
+        for i in range(self.m_data.ncon):
+            contact = self.m_data.contact[i]
             # Do we sense this contact at all
             if self.has_sensors(contact.geom1) or self.has_sensors(contact.geom2):
                 rel_geoms = []
@@ -315,7 +362,7 @@ class DiscreteTouch:
                     contact_geom_tuples.append((i, rel_geom, nearest_sensor_ids))
 
                     if verbose:
-                        print("Sensing with geom: ", rel_geom, sim.model.geom_id2name(rel_geom))
+                        print("Sensing with geom: ", rel_geom, self.m_model.geom_id2name(rel_geom))
                         print("Relative position: ", rel_pos)
                         print("Nearest sensors {} at position {} with distances {}".format(
                               nearest_sensor_ids,
