@@ -4,7 +4,7 @@ import mujoco_py
 from matplotlib import pyplot as plt
 
 from gymTouch.utils import mulRotT, mulRot, plot_forces, get_geoms_for_body, get_geom_rotation, get_body_rotation, \
-                           world_pos_to_geom, geom_pos_to_body
+                           world_pos_to_geom, geom_pos_to_body, EPS
 from gymTouch.sensorpoints import spread_points_box, spread_points_sphere, spread_points_cylinder, spread_points_capsule
 
 # Class that handles all of this
@@ -171,8 +171,11 @@ class DiscreteTouch:
         relative_position = self.get_contact_position_relative(contact_id, geom_id)
         sensor_points = self.sensor_positions[geom_id]
         distances = np.linalg.norm(sensor_points - relative_position, axis=1)
-        sorted_idxs = np.argpartition(distances, k)
-        return sorted_idxs[:k], distances[sorted_idxs[:k]]
+        if distances.shape[0] <= k:
+            return np.arange(distances.shape[0]), distances
+        else:
+            sorted_idxs = np.argpartition(distances, k)
+            return sorted_idxs[:k], distances[sorted_idxs[:k]]
 
     # ======================== Positions and rotations ================================
     # =================================================================================
@@ -374,7 +377,7 @@ class DiscreteTouch:
                 force_total += sensor_adjusted_force
                 adjusted_forces[sensor_id] = sensor_adjusted_force
 
-            factors = rel_forces / force_total
+            factors = rel_forces / (force_total + EPS)   # Add very small value to avoid divide by zero errors
             for sensor_id in adjusted_forces:
                 rescaled_sensor_adjusted_force = adjusted_forces[sensor_id] * factors
                 sensor_outputs[geom_id][sensor_id] += rescaled_sensor_adjusted_force
